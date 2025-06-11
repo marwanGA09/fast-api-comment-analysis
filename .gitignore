@@ -1,0 +1,44 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python compiled stuff
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Build / Packaging
+build/
+dist/
+*.egg-info/
+
+# Testing
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+
+# Environment & secrets
+.env
+
+# IDE files
+.vscode/
+.idea/
+
+# Additional
+.ipynb_checkpoints/
+.mypy_cache/
+.pyre/
+.pytype/
+docs/_build/
+
+# virtualenv
+/bin
+/include
+/lib
+/lib64
+pyvenv.cfg
