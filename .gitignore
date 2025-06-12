@@ -42,3 +42,4 @@ docs/_build/
 /lib
 /lib64
 pyvenv.cfg
+dismissedFile.py
