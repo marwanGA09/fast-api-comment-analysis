@@ -148,7 +148,8 @@ def analyze(request: AnalyzeRequest):
         tox = toxicity_pipeline(text)[0]
         spam = spam_pipeline(text)[0]
         # Define candidate topics for zero-shot
-        topics = ["praise", "criticism", "question", "spam", "other"]
+        topics = ["praise","criticism","question","denial","propaganda","ethnic_sentiment","religious_comment","call_to_action","support_opposition","conspiracy","misinformation","spam","neutral","other"]
+
         topic = topic_pipeline(text, candidate_labels=topics)["labels"][0]
         topic_score = topic_pipeline(text, candidate_labels=topics)["scores"][0]
         # Language detection
