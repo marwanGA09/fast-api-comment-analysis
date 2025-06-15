@@ -55,10 +55,10 @@ class CommentAnalysis(BaseModel):
     sentiment: SentimentResult
     emotion: EmotionResult
     toxicity: ToxicityResult
-    spam: SpamResult
+    # spam: SpamResult
     topic: TopicResult
-    language: str
-    summary: SummarizationResult
+    # language: str
+    # summary: SummarizationResult
 
 class AnalyzeResponse(BaseModel):
     results: List[CommentAnalysis]
@@ -72,29 +72,14 @@ app = FastAPI(
 )
 
 # --- Load models once at startup ---
-# @app.on_event("startup")
-# def load_models():
-#     global sentiment_pipeline, emotion_pipeline, toxicity_pipeline
-#     global spam_pipeline, topic_pipeline, summarization_pipeline
-#     # Sentiment
-#     sentiment_pipeline = pipeline("sentiment-analysis",model="distilbert-base-uncased-finetuned-sst-2-english")
-#     # Emotion detection
-#     emotion_pipeline = pipeline("text-classification", model="bhadresh-savani/bert-base-go-emotion")
-#     # Toxicity detection
-#     toxicity_pipeline = pipeline("text-classification", model="unitary/toxic-bert")
-#     # Spam detection (SMS spam model)
-#     spam_pipeline = pipeline("text-classification", model="mrm8488/bert-tiny-finetuned-sms-spam-detection")
-#     # Topic classification (zero-shot with candidate labels)
-#     topic_pipeline = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
-#     # Summarization
-#     summarization_pipeline = pipeline("summarization")
-
 
 
 @app.on_event("startup")
 def load_models():
     global sentiment_pipeline, emotion_pipeline, toxicity_pipeline
-    global spam_pipeline, topic_pipeline, summarization_pipeline
+    global  topic_pipeline
+    
+    # summarization_pipeline,spam_pipeline
 
     sentiment_pipeline = pipeline(
         "sentiment-analysis",
@@ -114,11 +99,11 @@ def load_models():
      
     )
 
-    spam_pipeline = pipeline(
-        "text-classification",
-        model="mrm8488/bert-tiny-finetuned-sms-spam-detection",
+    # spam_pipeline = pipeline(
+    #     "text-classification",
+    #     model="mrm8488/bert-tiny-finetuned-sms-spam-detection",
      
-    )
+    # )
 
     topic_pipeline = pipeline(
         "zero-shot-classification",
@@ -126,11 +111,11 @@ def load_models():
      
     )
 
-    summarization_pipeline = pipeline(
-        "summarization",
-        model="google/pegasus-xsum",
+    # summarization_pipeline = pipeline(
+    #     "summarization",
+    #     model="google/pegasus-xsum",
      
-    )
+    # )
 
 
 # --- Analysis endpoint ---
@@ -146,18 +131,18 @@ def analyze(request: AnalyzeRequest):
         sent = sentiment_pipeline(text)[0]
         emo = emotion_pipeline(text)[0]
         tox = toxicity_pipeline(text)[0]
-        spam = spam_pipeline(text)[0]
+        # spam = spam_pipeline(text)[0]
         # Define candidate topics for zero-shot
         topics = ["praise","criticism","question","denial","propaganda","ethnic_sentiment","religious_comment","call_to_action","support_opposition","conspiracy","misinformation","spam","neutral","other"]
 
         topic = topic_pipeline(text, candidate_labels=topics)["labels"][0]
         topic_score = topic_pipeline(text, candidate_labels=topics)["scores"][0]
         # Language detection
-        lang = detect(text)
+        # lang = detect(text)
         # Summarization (limit long text)
-        summary = summarization_pipeline(text, max_length=20, min_length=3, do_sample=False)[0]["summary_text"]
+        # summary = summarization_pipeline(text, max_length=20, min_length=3, do_sample=False)[0]["summary_text"]
         print("*****************")
-        print(sent, emo, tox, spam, topic, topic_score, lang, summary)
+        print(sent, emo, tox,  topic, topic_score )
         print("*****************")
         # Count sentiment
         lbl = sent["label"].lower()
@@ -172,10 +157,10 @@ def analyze(request: AnalyzeRequest):
             sentiment=SentimentResult(label=sent["label"], score=sent["score"]),
             emotion=EmotionResult(label=emo["label"], score=emo["score"]),
             toxicity=ToxicityResult(label=tox["label"], score=tox["score"]),
-            spam=SpamResult(label=spam["label"], score=spam["score"]),
+            # spam=SpamResult(label=spam["label"], score=spam["score"]),
             topic=TopicResult(label=topic, score=topic_score),
-            language=lang,
-            summary=SummarizationResult(summary=summary)
+            # language=lang,
+            # summary=SummarizationResult(summary=summary)
         ))
 
     total = sum(counters.values()) or 1
