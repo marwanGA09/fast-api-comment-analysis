@@ -63,6 +63,8 @@ class CommentAnalysis(BaseModel):
 class AnalyzeResponse(BaseModel):
     results: List[CommentAnalysis]
     meta: Dict[str, Any]
+    positive_summary: Optional[str]
+    negative_summary: Optional[str]
 
 # --- FastAPI app init ---
 app = FastAPI(
@@ -77,9 +79,8 @@ app = FastAPI(
 @app.on_event("startup")
 def load_models():
     global sentiment_pipeline, emotion_pipeline, toxicity_pipeline
-    global  topic_pipeline
-    
-    # summarization_pipeline,spam_pipeline
+    global  topic_pipeline, summarization_pipeline
+    # ,spam_pipeline
 
     sentiment_pipeline = pipeline(
         "sentiment-analysis",
@@ -111,11 +112,10 @@ def load_models():
      
     )
 
-    # summarization_pipeline = pipeline(
-    #     "summarization",
-    #     model="google/pegasus-xsum",
-     
-    # )
+    summarization_pipeline = pipeline(
+        "summarization",
+        model="google/pegasus-xsum",
+    )
 
 
 # --- Analysis endpoint ---
@@ -187,10 +187,10 @@ def analyze(request: AnalyzeRequest):
 
     # Zero-shot topic classification requires specifying candidate labels
     topics = [
-        "praise", "criticism", "question", "denial", "propaganda",
+        "praise", "criticism",  "propaganda",
         "ethnic_sentiment", "religious_comment", "call_to_action",
         "support_opposition", "conspiracy", "misinformation",
-        "spam", "neutral", "other"
+         "neutral", "other"
     ]
     topic_outputs = topic_pipeline(texts, candidate_labels=topics, batch_size=2)
     print("Topic outputs with batch of **2**:", topic_outputs)
@@ -222,11 +222,23 @@ def analyze(request: AnalyzeRequest):
             toxicity=ToxicityResult(label=tox["label"], score=tox["score"]),
             topic=TopicResult(label=topic_label, score=topic_score),
         ))
+    positive_comments ,negative_comments = '', ''
+    for each in analyses:
+        if each.sentiment.label.lower() == "positive":
+            positive_comments += each.original_text + " "
+        elif each.sentiment.label.lower() == "negative":
+            negative_comments += each.original_text + " "
+    
+    pos_summary = summarization_pipeline(positive_comments[:1024], min_length=20, max_length=150)[0]["summary_text"]
+    neg_summary = summarization_pipeline(negative_comments[:1024], min_length=20, max_length=150)[0]["summary_text"]
 
+
+    
     total = sum(counters.values()) or 1
     meta = {f"{k}_ratio": v / total for k, v in counters.items()}
     print("--> 3. Analysis complete. Total comments analyzed:", len(analyses))
-    return AnalyzeResponse(results=analyses, meta=meta)
+    return AnalyzeResponse(results=analyses, meta=meta, positive_summary=pos_summary,
+    negative_summary=neg_summary)
 
 # --- Run with: uvicorn app:app --host 0.0.0.0 --port 5000 ---
 if __name__ == "__main__":
