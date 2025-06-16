@@ -119,53 +119,113 @@ def load_models():
 
 
 # --- Analysis endpoint ---
+# @app.post("/analyze", response_model=AnalyzeResponse)
+# def analyze(request: AnalyzeRequest):
+#     if not request.comments:
+#         raise HTTPException(status_code=400, detail="No comments provided.")
+
+#     analyses = []
+#     counters = {"positive": 0, "negative": 0, "neutral": 0}
+#     for c in request.comments:
+#         text = c.text
+#         sent = sentiment_pipeline(text)[0]
+#         emo = emotion_pipeline(text)[0]
+#         tox = toxicity_pipeline(text)[0]
+#         # spam = spam_pipeline(text)[0]
+#         # Define candidate topics for zero-shot
+#         topics = ["praise","criticism","question","denial","propaganda","ethnic_sentiment","religious_comment","call_to_action","support_opposition","conspiracy","misinformation","spam","neutral","other"]
+
+#         topic = topic_pipeline(text, candidate_labels=topics)["labels"][0]
+#         topic_score = topic_pipeline(text, candidate_labels=topics)["scores"][0]
+#         # Language detection
+#         # lang = detect(text)
+#         # Summarization (limit long text)
+#         # summary = summarization_pipeline(text, max_length=20, min_length=3, do_sample=False)[0]["summary_text"]
+#         print("*****************")
+#         print(sent, emo, tox,  topic, topic_score )
+#         print("*****************")
+#         # Count sentiment
+#         lbl = sent["label"].lower()
+#         if lbl in counters:
+#             counters[lbl] += 1
+
+#         analyses.append(CommentAnalysis(
+#             original_text=text,
+#             likes=c.likes or 0,
+#             timestamp=c.timestamp,
+#             is_reply=c.is_reply,
+#             sentiment=SentimentResult(label=sent["label"], score=sent["score"]),
+#             emotion=EmotionResult(label=emo["label"], score=emo["score"]),
+#             toxicity=ToxicityResult(label=tox["label"], score=tox["score"]),
+#             # spam=SpamResult(label=spam["label"], score=spam["score"]),
+#             topic=TopicResult(label=topic, score=topic_score),
+#             # language=lang,
+#             # summary=SummarizationResult(summary=summary)
+#         ))
+
+#     total = sum(counters.values()) or 1
+#     meta = {f"{k}_ratio": v / total for k, v in counters.items()}
+
+#     return AnalyzeResponse(results=analyses, meta=meta)
+
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(request: AnalyzeRequest):
     if not request.comments:
         raise HTTPException(status_code=400, detail="No comments provided.")
+    
+    print("--> 1. Received comments for analysis:", len(request.comments))
+    comments = request.comments
+    texts = [c.text for c in comments]
+    print("--> 2. Extracted texts for analysis:", len(texts))
+    # 🔁 Batch process all texts
+    sentiments =  sentiment_pipeline(texts, batch_size=8)
+    emotions =emotion_pipeline(texts, batch_size=6)
+    toxicities = toxicity_pipeline(texts, batch_size=4)
+    print("sentiment outputs with batch of **8**:", sentiments)
+    print("emotion outputs with batch of **6**:", emotions)
+    print("toxicity outputs with batch of **4**:", toxicities)
 
-    analyses = []
+    # Zero-shot topic classification requires specifying candidate labels
+    topics = [
+        "praise", "criticism", "question", "denial", "propaganda",
+        "ethnic_sentiment", "religious_comment", "call_to_action",
+        "support_opposition", "conspiracy", "misinformation",
+        "spam", "neutral", "other"
+    ]
+    topic_outputs = topic_pipeline(texts, candidate_labels=topics, batch_size=2)
+    print("Topic outputs with batch of **2**:", topic_outputs)
+
+    # Initialize counters
     counters = {"positive": 0, "negative": 0, "neutral": 0}
-    for c in request.comments:
-        text = c.text
-        sent = sentiment_pipeline(text)[0]
-        emo = emotion_pipeline(text)[0]
-        tox = toxicity_pipeline(text)[0]
-        # spam = spam_pipeline(text)[0]
-        # Define candidate topics for zero-shot
-        topics = ["praise","criticism","question","denial","propaganda","ethnic_sentiment","religious_comment","call_to_action","support_opposition","conspiracy","misinformation","spam","neutral","other"]
+    analyses = []
 
-        topic = topic_pipeline(text, candidate_labels=topics)["labels"][0]
-        topic_score = topic_pipeline(text, candidate_labels=topics)["scores"][0]
-        # Language detection
-        # lang = detect(text)
-        # Summarization (limit long text)
-        # summary = summarization_pipeline(text, max_length=20, min_length=3, do_sample=False)[0]["summary_text"]
-        print("*****************")
-        print(sent, emo, tox,  topic, topic_score )
-        print("*****************")
+    for idx, c in enumerate(comments):
+        print(f"Processing comment {idx + 1}/{len(comments)}: {c.text[:50]}...")
+        sent = sentiments[idx]
+        emo = emotions[idx]
+        tox = toxicities[idx]
+        topic_label = topic_outputs[idx]["labels"][0]
+        topic_score = topic_outputs[idx]["scores"][0]
+
         # Count sentiment
         lbl = sent["label"].lower()
         if lbl in counters:
             counters[lbl] += 1
 
         analyses.append(CommentAnalysis(
-            original_text=text,
+            original_text=c.text,
             likes=c.likes or 0,
             timestamp=c.timestamp,
             is_reply=c.is_reply,
             sentiment=SentimentResult(label=sent["label"], score=sent["score"]),
             emotion=EmotionResult(label=emo["label"], score=emo["score"]),
             toxicity=ToxicityResult(label=tox["label"], score=tox["score"]),
-            # spam=SpamResult(label=spam["label"], score=spam["score"]),
-            topic=TopicResult(label=topic, score=topic_score),
-            # language=lang,
-            # summary=SummarizationResult(summary=summary)
+            topic=TopicResult(label=topic_label, score=topic_score),
         ))
 
     total = sum(counters.values()) or 1
     meta = {f"{k}_ratio": v / total for k, v in counters.items()}
-
+    print("--> 3. Analysis complete. Total comments analyzed:", len(analyses))
     return AnalyzeResponse(results=analyses, meta=meta)
 
 # --- Run with: uvicorn app:app --host 0.0.0.0 --port 5000 ---
